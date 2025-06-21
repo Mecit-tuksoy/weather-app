@@ -1,0 +1,126 @@
+
+name: Infrastructure Setup (One-Time Manual)
+on:
+  workflow_dispatch:  # 🔘 Manuel Run
+
+jobs:
+  setup-infra:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⏬ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ☁️ Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          install_components: kubectl
+
+      - name: 🔐 Authenticate with GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: 🔑 Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "${{ vars.GKE_CLUSTER_NAME }}" \
+            --region "${{ vars.GKE_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
+      - name: 🔐 Create and apply Kubernetes Secret
+        run: |
+          cat <<EOF > manifests/app-secrets.yaml
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: app-secrets
+          type: Opaque
+          stringData:
+            DB_USER: "${{ secrets.DB_USER }}"
+            DB_PASS: "${{ secrets.DB_PASS }}"
+            DB_NAME: "${{ secrets.DB_NAME }}"
+            WEATHER_API_KEY: "${{ secrets.WEATHER_API_KEY }}"
+          EOF
+          kubectl apply -f manifests/app-secrets.yaml
+
+      - name: 📦 Apply Kubernetes Configs (ConfigMap, PostgreSQL)
+        run: |
+          kubectl apply -f manifests/argocd-app.yaml
+          kubectl apply -f manifests/postgresql-init-configmap.yaml
+          kubectl apply -f manifests/postgresql-statefulset.yaml
+          kubectl apply -f manifests/postgresql-service.yaml
+          kubectl apply -f manifests/postgresql-nodeport.yaml
+          kubectl apply -f manifests/service-backend.yaml
+          kubectl apply -f manifests/service-frontend.yaml
+  
+          echo "⏳ Waiting 30s for PostgreSQL pod to start..."
+          sleep 30
+
+      - name: 🧱 Apply PostgreSQL User Setup Job
+        run: |
+          echo "📌 Creating PostgreSQL database and user setup..."
+          cat <<EOF > manifests/postgresql-user-job.yaml
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: postgresql-user-setup
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: postgresql-user
+                    image: postgres:15
+                    command: ["sh", "-c"]
+                    args:
+                      - |
+                        echo "⏳ Waiting for PostgreSQL to be ready..."
+                        sleep 40
+                        
+                        export PGPASSWORD=\$DB_PASS
+                        
+                        echo "📌 Creating database if not exists..."
+                        psql -h postgresql -U postgres -c "CREATE DATABASE \$DB_NAME;" || echo "Database already exists"
+                        
+                        echo "📌 Creating user if not exists..."
+                        psql -h postgresql -U postgres -c "
+                          DO \$\$
+                          BEGIN
+                            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '\$DB_USER') THEN
+                              CREATE USER \$DB_USER WITH PASSWORD '\$DB_PASS';
+                            END IF;
+                          END
+                          \$\$;
+                          
+                          GRANT ALL PRIVILEGES ON DATABASE \$DB_NAME TO \$DB_USER;
+                          GRANT ALL ON SCHEMA public TO \$DB_USER;
+                        "
+                        
+                        echo "✅ PostgreSQL setup completed!"
+                    env:
+                      - name: DB_PASS
+                        valueFrom:
+                          secretKeyRef:
+                            name: app-secrets
+                            key: DB_PASS
+                      - name: DB_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: app-secrets
+                            key: DB_USER
+                      - name: DB_NAME
+                        valueFrom:
+                          secretKeyRef:
+                            name: app-secrets
+                            key: DB_NAME
+                restartPolicy: Never
+            backoffLimit: 2
+          EOF
+
+          kubectl apply -f manifests/postgresql-user-job.yaml
+
+          echo "⏳ Waiting for job to complete..."
+          sleep 50
+
+        # echo "🧹 Cleaning up completed PostgreSQL job..."
+        # kubectl delete job postgresql-user-setup || true

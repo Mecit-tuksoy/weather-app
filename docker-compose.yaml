@@ -1,0 +1,55 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: weather-postgres
+    environment:
+      POSTGRES_DB: weatherdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d weatherdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Node.js Weather API Backend
+  weather-api:
+    build: ./backend
+    container_name: weather-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - WEATHER_API_KEY=7d7a59cce20706ee084e20cad34aea6d
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/weatherdb?sslmode=disable
+      - DB_HOST=postgres
+      - DB_NAME=weatherdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # React Frontend
+  weather-frontend:
+    build: ./frontend
+    container_name: weather-frontend
+    depends_on:
+      - weather-api
+    environment:
+      - REACT_APP_API_URL=http://localhost:3000
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data: {}
