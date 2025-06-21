@@ -50,7 +50,7 @@ jobs:
         run: |
           docker build \
           --no-cache \
-          --build-arg VITE_API_URL=${{ vars.VITE_NEWS_API_URL }} \
+          --build-arg REACT_APP_API_URL=${{ vars.VITE_NEWS_API_URL }} \
           -t ${{ vars.GKE_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/weather-app/weather-frontend:${{ env.IMAGE_TAG }} \
           frontend
           docker push ${{ vars.GKE_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/weather-app/weather-frontend:${{ env.IMAGE_TAG }}
