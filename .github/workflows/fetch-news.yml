@@ -2,7 +2,7 @@ name: Fetch Weather
 
 on:
   schedule:
-     - cron: '*/15 * * * *'   # Every 15 minutes (disabled for now)
+    #- cron: '*/15 * * * *'   # Every 15 minutes (disabled for now)
     #- cron: '0 */12 * * *'     # Every 12 hours (active)
   workflow_dispatch:
 
