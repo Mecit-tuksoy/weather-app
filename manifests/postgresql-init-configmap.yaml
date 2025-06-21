@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-init-script
+data:
+  init.sql: |
+    
+    DROP TABLE IF EXISTS weather_logs;
+
+
+    CREATE TABLE weather_logs (
+    id SERIAL PRIMARY KEY,
+    temperature DECIMAL(5,2) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    humidity INTEGER,
+    pressure INTEGER,
+    wind_speed DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+
+    CREATE INDEX idx_weather_logs_created_at ON weather_logs(created_at);
+    CREATE INDEX idx_weather_logs_temperature ON weather_logs(temperature);

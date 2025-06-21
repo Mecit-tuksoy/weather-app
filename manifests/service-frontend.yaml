@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: weather-frontend
+  ports:
+    - port: 80
+      targetPort: 80
