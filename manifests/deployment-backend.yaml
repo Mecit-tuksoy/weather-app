@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: weather-backend
-        image: us-central1-docker.pkg.dev/weather-app-463611/weather-app/weather-backend:3
+        image: us-central1-docker.pkg.dev/weather-app-463611/weather-app/weather-backend:4
         ports:
         - containerPort: 3000
         env:
