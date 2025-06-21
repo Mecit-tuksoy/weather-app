@@ -20,4 +20,4 @@ spec:
             - containerPort: 80
           env:
             - name: REACT_APP_API_URL
-              value: "http://34.56.52.69" # Internal service adı kullan
+              value: "http://backend-service" # Internal service adı kullan
